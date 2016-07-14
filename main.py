@@ -45,25 +45,16 @@ def run(port):
 
 if __name__ == '__main__':
     options = get_options()
-    # Raise SUMO
-    if options.nogui:
-        sumoBinary = checkBinary('sumo')
-    else:
-        sumoBinary = checkBinary('sumo-gui')
-
     # Generate a 3x3 intersections network
     sumo_env_static = SUMOENV(data_dir, '3x3_static', 3, 3, tlstype='static')
     sumo_env_actuated = SUMOENV(data_dir, '3x3_actuated', 3, 3, tlstype='actuated')
-    sumo_env_static.create()
-    sumo_env_actuated.create()
     # the port used for communicating with sumo instance
     PORT = 8873
 
     # Raise SUMO
-    # sumocfg = sumo_env_static.sumocfg_without_detector
-    # sumoProcess = subprocess.Popen([sumoBinary, '-c', sumocfg, '--remote-port', str(PORT)],
-    #                               stdout=sys.stdout, stderr=sys.stderr)
-    if sumo_env_static.iscreated():
-        sumoProcess = sumo_env_static.run(PORT, gui=True)
+    if not sumo_env_static.iscreated():
+        sumo_env_static.create()
+        sumo_env_actuated.create()
+    sumoProcess = sumo_env_static.run(PORT, gui=True)
     run(PORT)
     sumoProcess.wait()

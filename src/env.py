@@ -6,6 +6,7 @@ from itertools import cycle
 from lxml import etree
 
 sumo_root = '/usr/share/sumo'
+
 try:
     sumo_home = os.path.join(sumo_root, 'tools')
     sys.path.append(sumo_home)  # tutorial in docs
@@ -18,7 +19,7 @@ except ImportError:
 
 class SUMOENV:
     def __init__(self, data_dir, netname, xnumber, ynumber,
-                 xlength=400, ylength=400, nettype='grid', tlstype='actuated', rouprob=10):
+                 xlength=400, ylength=400, nettype='grid', tlstype='actuated', rouprob=10, steps=3600):
         """
         Initialize SUMO environment.
         :param data_dir: where XML saved
@@ -48,6 +49,7 @@ class SUMOENV:
         self.rouprob = rouprob
         self.tlstype = tlstype
         self.nettype = nettype
+        self.steps = str(steps)
         self.netfile = os.path.join(self.net_dir, self.netname + '.net.xml')
         self.tripfile = os.path.join(self.net_dir, self.netname + '.trip.xml')
         self.roufile = os.path.join(self.net_dir, self.netname + '.rou.xml')
@@ -63,7 +65,7 @@ class SUMOENV:
         """
         self.gen_network(self.xnumber, self.ynumber, self.xlength, self.ylength,
                          nettype=self.nettype, tlstype=self.tlstype)  # Set length to 400
-        self.gen_randomtrips(self.rouprob)  # Set edge prop to 10
+        self.gen_randomtrips(self.rouprob, endtime=self.steps)  # Set edge prop to 10
         self.gen_detectors()
         self.sumocfg = self.gen_sumocfg()
         self.sumocfg_nodet = self.gen_sumocfg(withdetector=False)
@@ -92,8 +94,11 @@ class SUMOENV:
         else:
             sumocfg = self.sumocfg_nodet
 
+        sumo_env = os.environ.copy()
+        sumo_env['SUMO_HOME'] = sumo_root
+        # set_sumo_home = 'env SUMO_HOME=%s' % sumo_home
         sumoProcess = subprocess.Popen([sumoBinary, '-c', sumocfg, '--remote-port', str(port)],
-                                       stdout=sys.stdout, stderr=sys.stderr)
+                                       env=sumo_env, stdout=sys.stdout, stderr=sys.stderr)
         # sumoProcess.wait()
         return sumoProcess
 
@@ -118,7 +123,7 @@ class SUMOENV:
                                             '--%s.attach-length' % nettype, xlength,
                                             '-o', self.netfile], stdout=sys.stdout, stderr=sys.stderr)
 
-    def gen_randomtrips(self, rouprob, endtime='3600', seed='42',
+    def gen_randomtrips(self, rouprob, endtime, seed='42',
                         trip_attrib="departLane=\"best\" departSpeed=\"max\" departPos=\"random\""):
         """
         Generate random trip on given network

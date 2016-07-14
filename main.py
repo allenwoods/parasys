@@ -4,19 +4,19 @@ import sys
 import subprocess
 
 from src.env import SUMOENV
+from src.mission import run
 
 data_dir = os.path.join(os.getcwd(), 'data')
 # import python modules from the $SUMO_HOME/tools directory
-
-sumo_root = '/usr/share/sumo'
-try:
-    sumo_home = os.path.join(sumo_root, 'tools')
-    sys.path.append(sumo_home)  # tutorial in docs
-    print(sys.path)
-    from sumolib import checkBinary
-except ImportError:
-    sys.exit(
-        "please declare environment variable 'SUMO_HOME' as the root directory of your sumo installation (it should contain folders 'bin', 'tools' and 'docs')")
+# sumo_root = '/usr/share/sumo'
+# try:
+#     sumo_home = os.path.join(sumo_root, 'tools')
+#     sys.path.append(sumo_home)  # tutorial in docs
+#     print(sys.path)
+#     from sumolib import checkBinary
+# except ImportError:
+#     sys.exit(
+#         "please declare environment variable 'SUMO_HOME' as the root directory of your sumo installation (it should contain folders 'bin', 'tools' and 'docs')")
 
 
 def get_options():
@@ -27,21 +27,21 @@ def get_options():
     return options
 
 
-def run(port):
-    """
-    Initiate the TraCI Server
-    :param port:
-    :return:
-    """
-    import traci
-    traci.init(port)
-    step = 0
-    while traci.simulation.getMinExpectedNumber() > 0:
-        traci.simulationStep()
-        print(step)
-        step += 1
-    traci.close()
-    sys.stdout.flush()
+# def run(port):
+#     """
+#     Initiate the TraCI Server
+#     :param port:
+#     :return:
+#     """
+#     import traci
+#     traci.init(port)
+#     step = 0
+#     while traci.simulation.getMinExpectedNumber() > 0:
+#         traci.simulationStep()
+#         print(step)
+#         step += 1
+#     traci.close()
+#     sys.stdout.flush()
 
 if __name__ == '__main__':
     options = get_options()

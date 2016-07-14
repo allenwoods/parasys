@@ -96,7 +96,7 @@ class SUMOENV:
         e1generator = os.path.join(sumo_home, 'output', 'generateTLSE1Detectors.py')
         e2generator = os.path.join(sumo_home, 'output', 'generateTLSE2Detectors.py')
         e3generator = os.path.join(sumo_home, 'output', 'generateTLSE3Detectors.py')
-        det_outputs = ['output/' + 'e_%doutput.xml' % (i + 1) for i in range(3)]
+        det_outputs = ['output/' + 'e%d_output.xml' % (i + 1) for i in range(3)]
         e_generators = [e1generator, e2generator, e3generator]
         paras = zip(e_generators, cycle(['-n']), cycle([self.netfile]),
                     cycle(['-o']), self.detectors, cycle(['-r']), det_outputs)

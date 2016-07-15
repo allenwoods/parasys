@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from src.log import timeit
 
 sumo_root = '/usr/share/sumo'
 
@@ -60,10 +61,20 @@ class TrafficSim:
         self.tls = trafficlights.getIDList()
         self.tls_lane_pair = dict(zip(self.tls,
                                       [trafficlights.getControlledLanes(t) for t in self.tls]))
-
+    @timeit
     def step(self):
         traci.simulationStep()
         tls_status = dict(zip(self.tls, map(trafficlights.getRedYellowGreenState, self.tls)))
+        all_lanes = lane.getIDList()
+        # Warning: get lanes status takes lots of time
+        lanes_status = dict(zip(all_lanes, map(self.__get_lane_status, all_lanes)))
+        for t in self.tls:
+            print(t)
+            t_status = tls_status[t]
+            controlled_lane = self.tls_lane_pair[t]
+            t_l_staus = zip(t_status, [lanes_status[l] for l in controlled_lane])
+            for i in t_l_staus:
+                print(i)
 
 
 

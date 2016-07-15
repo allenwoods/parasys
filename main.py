@@ -4,7 +4,7 @@ import sys
 import subprocess
 
 from src.env import SUMOENV
-from src.mission import run
+from src.mission import TrafficSim
 
 data_dir = os.path.join(os.getcwd(), 'data')
 # import python modules from the $SUMO_HOME/tools directory
@@ -55,6 +55,7 @@ if __name__ == '__main__':
     if not sumo_env_static.iscreated():
         sumo_env_static.create()
         sumo_env_actuated.create()
-    sumoProcess = sumo_env_static.run(PORT, gui=True)
-    run(PORT)
+    sumoProcess = sumo_env_static.run(PORT)
+    get_tls_status = TrafficSim(PORT)
+    get_tls_status.run()
     sumoProcess.wait()

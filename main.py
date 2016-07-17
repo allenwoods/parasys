@@ -3,6 +3,9 @@ import os
 import sys
 import subprocess
 
+# SET SUMO HOME
+os.environ.setdefault('SUMO_HOME', '/usr/share/sumo')
+
 from src.env import SUMOENV
 from src.mission import TrafficSim
 
@@ -48,14 +51,18 @@ if __name__ == '__main__':
     # Generate a 3x3 intersections network
     sumo_env_static = SUMOENV(data_dir, '3x3_static', 3, 3, tlstype='static')
     sumo_env_actuated = SUMOENV(data_dir, '3x3_actuated', 3, 3, tlstype='actuated')
+    sumo_env_test_actuated = SUMOENV(data_dir, '1x1_actuated', 1, 1, tlstype='actuated')
+    sumo_env_test_static = SUMOENV(data_dir, '1x1_static', 1, 1, tlstype='static')
     # the port used for communicating with sumo instance
     PORT = 8873
 
-    # Raise SUMO
-    if not sumo_env_static.iscreated():
-        sumo_env_static.create()
-        sumo_env_actuated.create()
-    sumoProcess = sumo_env_static.run(PORT)
-    get_tls_status = TrafficSim(PORT)
-    get_tls_status.run()
-    sumoProcess.wait()
+    sumo_env_test_static.create()
+    sumo_env_test_actuated.create()
+    # # Raise SUMO
+    # if not sumo_env_static.iscreated():
+    #     sumo_env_static.create()
+    #     sumo_env_actuated.create()
+    # sumoProcess = sumo_env_static.run(PORT)
+    # get_tls_status = TrafficSim(PORT)
+    # get_tls_status.run()
+    # sumoProcess.wait()

@@ -5,12 +5,11 @@ from itertools import cycle
 
 from lxml import etree
 
-sumo_root = '/usr/share/sumo'
+sumo_root = os.environ.get('SUMO_HOME')
 
 try:
     sumo_home = os.path.join(sumo_root, 'tools')
     sys.path.append(sumo_home)  # tutorial in docs
-    print(sys.path)
     from sumolib import checkBinary
 except ImportError:
     sys.exit(
@@ -19,7 +18,7 @@ except ImportError:
 
 class SUMOENV:
     def __init__(self, data_dir, netname, xnumber, ynumber,
-                 xlength=400, ylength=400, nettype='grid', tlstype='actuated', rouprob=10, steps=3600):
+                 xlength=400, ylength=400, nettype='grid', tlstype='static', rouprob=10, steps=3600):
         """
         Initialize SUMO environment.
         :param data_dir: where XML saved
@@ -32,8 +31,8 @@ class SUMOENV:
         :param tlstype: style of traffic light(static, actuated)
         :param rouprob: probability to generate a route begin/end at edge without precursor/successor
         """
-        if xnumber < 2 or ynumber < 2:
-            raise ValueError("The number of nodes must be at least 2 in both directions.")
+        # if xnumber < 2 or ynumber < 2:
+        #     raise ValueError("The number of nodes must be at least 2 in both directions.")
         self.netname = netname
         self.data_dir = data_dir
         self.net_dir = os.path.join(self.data_dir, self.netname)
@@ -46,7 +45,7 @@ class SUMOENV:
         self.ynumber = str(ynumber)
         self.xlength = str(xlength)
         self.ylength = str(ylength)
-        self.rouprob = rouprob
+        self.rouprob = str(rouprob)
         self.tlstype = tlstype
         self.nettype = nettype
         self.steps = str(steps)
@@ -103,7 +102,7 @@ class SUMOENV:
         return sumoProcess
 
     def gen_network(self, xnumber, ynumber, xlength, ylength,
-                    nettype='grid', tlstype='actuated'):
+                    nettype='grid', tlstype='static'):
         """
         Generate network model
         :param xnumber: nodes on x axis
@@ -114,13 +113,22 @@ class SUMOENV:
         :param tlstype:
         :return:
         """
+        if int(xnumber) < 2 or int(ynumber) < 2:
+            if xnumber == ynumber == str(1) and xlength == ylength:
+                self.gen_intersection(xlength, tlstype)
+                return 0
+            else:
+                raise ValueError('Grid sharp is not supported(yet)')
         netgenerate = checkBinary('netgenerate')
         netgenProcessor = subprocess.Popen([netgenerate, '--%s' % nettype,
                                             '--grid.x-number', xnumber, '--grid.y-number', ynumber,
                                             '--grid.x-length', xlength, '--grid.y-length', ylength,
                                             '--tls.guess', 'true', '--tls.default-type', tlstype,
                                             '--default.lanenumber', '2',
+                                            '--check-lane-foes.all', 'true',
                                             '--%s.attach-length' % nettype, xlength,
+                                            '--plain-output-prefix',
+                                            os.path.join(self.data_dir, self.netname, self.netname),
                                             '-o', self.netfile], stdout=sys.stdout, stderr=sys.stderr)
 
     def gen_randomtrips(self, rouprob, endtime, seed='42',
@@ -137,9 +145,10 @@ class SUMOENV:
         rantrip_generator = os.path.join(sumo_home, 'randomTrips.py')
         gentripProcessor = subprocess.Popen([rantrip_generator, '-n', self.netfile,
                                              '-e', endtime, '-s', seed,
-                                             '--fringe-factor', rouprob, '--trip-attributes', trip_attrib,
-                                             '-o', self.tripfile, '-r', self.roufile], stdout=sys.stdout,
-                                            stderr=sys.stderr)
+                                             '--fringe-factor', rouprob,
+                                             '-r', self.roufile,
+                                             '--trip-attributes', trip_attrib, '-o', self.tripfile],
+                                            stdout=sys.stdout, stderr=sys.stderr)
 
     def gen_detectors(self):
         """
@@ -166,7 +175,12 @@ class SUMOENV:
         :param withdetector: controll whether the detector should be add in the file or not
         :return:
         """
-        conf_root = etree.Element("configuration", nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"})
+        xsd_file = "http://sumo.dlr.de/xsd/sumoConfiguration.xsd"
+        conf_root = etree.Element("configuration",
+                                  nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"},
+                                  attrib={'noNamespaceSchemaLocation': xsd_file})
+        # xsd_loc = "http://sumo.dlr.de/xsd/net_file.xsd"
+        # xsd_loc_attrib = '{%s}noNamespaceSchemaLocation' %xsd_loc
         # conf_root.set('xsi:noNamespaceSchemaLocation', "http://sumo.dlr.de/xsd/sumoConfiguration.xsd")
         # Set Input file
         conf_input = etree.SubElement(conf_root, 'input')
@@ -211,3 +225,77 @@ class SUMOENV:
             sumocfg_file = self.sumocfg_nodet
         conf_tree.write(sumocfg_file, pretty_print=True, xml_declaration=True, encoding='utf-8')
         return sumocfg_file
+
+    def gen_intersection(self, edgelen, tlstype='static'):
+        length = int(edgelen)
+        cross_nodes_file = os.path.join(self.net_dir, 'intersection_%s.nod.xml' % length)
+        cross_edges_file = os.path.join(self.net_dir, 'intersection_%s.edg.xml' % length)
+        # Generate nodes
+        node_xsd_file = "http://sumo.dlr.de/xsd/nodes_file.xsd"
+        nodes_root = etree.Element("nodes",
+                                   nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"},
+                                   attrib={'noNamespaceSchemaLocation': node_xsd_file})
+        cross_node = etree.SubElement(nodes_root, 'node')
+        cross_node.set('id', 'cross')
+        cross_node.set('x', '0')
+        cross_node.set('y', '0')
+        cross_node.set('type', 'traffic_light')
+        cross_node.set('tlType', tlstype)
+        n_node = etree.SubElement(nodes_root, 'node')
+        n_node.set('id', 'north')
+        n_node.set('x', '0')
+        n_node.set('y', str(length))
+        n_node.set('type', 'priority')
+        s_node = etree.SubElement(nodes_root, 'node')
+        s_node.set('id', 'south')
+        s_node.set('x', '0')
+        s_node.set('y', str(-length))
+        s_node.set('type', 'priority')
+        e_node = etree.SubElement(nodes_root, 'node')
+        e_node.set('id', 'east')
+        e_node.set('x', str(length))
+        e_node.set('y', '0')
+        e_node.set('type', 'priority')
+        w_node = etree.SubElement(nodes_root, 'node')
+        w_node.set('id', 'west')
+        w_node.set('x', str(-length))
+        w_node.set('y', '0')
+        w_node.set('type', 'priority')
+        nodes_tree = etree.ElementTree(nodes_root)
+        # print(cross_nodes_file)
+        nodes_tree.write(cross_nodes_file,
+                         pretty_print=True, xml_declaration=True, encoding='utf-8')
+        # Create edges
+        edges_xsd_file = "http://sumo.dlr.de/xsd/edges_file.xsd"
+        edges_root = etree.Element("edges",
+                                   nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"},
+                                   attrib={'noNamespaceSchemaLocation': edges_xsd_file})
+        create_edges(edges_root, 'north', 'cross')
+        create_edges(edges_root, 'south', 'cross')
+        create_edges(edges_root, 'east', 'cross')
+        create_edges(edges_root, 'west', 'cross')
+        edges_tree = etree.ElementTree(edges_root)
+        edges_tree.write(cross_edges_file,
+                         pretty_print=True, xml_declaration=True, encoding='utf-8')
+        netconvert = checkBinary('netconvert')
+        # print(self.netfile)
+        netconvertor = subprocess.Popen([netconvert,
+                                         '--node-files', cross_nodes_file,
+                                         '--edge-files', cross_edges_file,
+                                         '--output-file', self.netfile],
+                                        stdout=sys.stdout, stderr=sys.stderr)
+
+
+def create_edges(root, node1_id, node2_id):
+    edge1 = etree.SubElement(root, 'edge')
+    edge1.set('id', '%s_to_%s' % (node1_id, node2_id))
+    edge1.set('from', node1_id)
+    edge1.set('to', node2_id)
+    edge1.set('numLanes', '2')
+    edge1.set('speed', '13.9')  # Default Speed 13.9m/s
+    edge2 = etree.SubElement(root, 'edge')
+    edge2.set('id', '%s_to_%s' % (node2_id, node1_id))
+    edge2.set('from', node2_id)
+    edge2.set('to', node1_id)
+    edge2.set('numLanes', '2')
+    edge2.set('speed', '13.9')  # Default Speed 13.9m/s

@@ -228,8 +228,8 @@ class SUMOENV:
 
     def gen_intersection(self, edgelen, tlstype='static'):
         length = int(edgelen)
-        cross_nodes_file = os.path.join(self.net_dir, 'intersection_%s.nod.xml' % length)
-        cross_edges_file = os.path.join(self.net_dir, 'intersection_%s.edg.xml' % length)
+        cross_nodes_file = os.path.join(self.net_dir, '%s.nod.xml' % self.netname)
+        cross_edges_file = os.path.join(self.net_dir, '%s.edg.xml' % self.netname)
         # Generate nodes
         node_xsd_file = "http://sumo.dlr.de/xsd/nodes_file.xsd"
         nodes_root = etree.Element("nodes",

@@ -9,36 +9,35 @@ sumo_root = os.environ.get('SUMO_HOME')
 
 try:
     sumo_home = os.path.join(sumo_root, 'tools')
-    sys.path.append(sumo_home)  # tutorial in docs
+    sys.path.append(sumo_home)
     from sumolib import checkBinary
 except ImportError:
     sys.exit(
-        "please declare environment variable 'SUMO_HOME' as the root directory of your sumo installation (it should contain folders 'bin', 'tools' and 'docs')")
+        "Please declare environment variable 'SUMO_HOME' as the root directory "
+        "of your sumo installation (it should contain folders 'bin', 'tools' and 'docs')")
 
 
-class SUMOENV:
-    def __init__(self, data_dir, netname, xnumber, ynumber,
-                 xlength=400, ylength=400, nettype='grid', tlstype='static', rouprob=10, steps=3600):
+class SumoEnv:
+    def __init__(self, data_dir, net_name, xnumber, ynumber,
+                 xlength=400, ylength=400, net_type='grid', tls_type='static', rouprob=10, steps=3600):
         """
         Initialize SUMO environment.
         :param data_dir: where XML saved
-        :param netname: name of network
+        :param net_name: name of network
         :param xnumber: nodes' number on x axis
         :param ynumber: nodes' number on y axis
         :param xlength: length of each edge on x axis
         :param ylength: length of each edge on y axis
-        :param nettype: type of network, sumo support 'grid', 'spider', 'random'.
-        :param tlstype: style of traffic light(static, actuated)
+        :param net_type: type of network, sumo support 'grid', 'spider', 'random'.
+        :param tls_type: style of traffic light(static, actuated)
         :param rouprob: probability to generate a route begin/end at edge without precursor/successor
         """
-        # if xnumber < 2 or ynumber < 2:
-        #     raise ValueError("The number of nodes must be at least 2 in both directions.")
-        self.netname = netname
+        self.netname = net_name
         self.data_dir = data_dir
         self.net_dir = os.path.join(self.data_dir, self.netname)
         if not os.path.isdir(self.net_dir):
             os.makedirs(self.net_dir)
-        self.output_dir = os.path.join(self.net_dir, 'output')
+        self.output_dir = os.path.join(self.net_dir, 'output', )
         if not os.path.isdir(self.output_dir):
             os.makedirs(self.output_dir)
         self.xnumber = str(xnumber)
@@ -46,8 +45,8 @@ class SUMOENV:
         self.xlength = str(xlength)
         self.ylength = str(ylength)
         self.rouprob = str(rouprob)
-        self.tlstype = tlstype
-        self.nettype = nettype
+        self.tlstype = tls_type
+        self.nettype = net_type
         self.steps = str(steps)
         self.netfile = os.path.join(self.net_dir, self.netname + '.net.xml')
         self.tripfile = os.path.join(self.net_dir, self.netname + '.trip.xml')
@@ -65,25 +64,24 @@ class SUMOENV:
         self.gen_network(self.xnumber, self.ynumber, self.xlength, self.ylength,
                          nettype=self.nettype, tlstype=self.tlstype)  # Set length to 400
         self.gen_randomtrips(self.rouprob, endtime=self.steps)  # Set edge prop to 10
-        self.gen_detectors()
-        self.sumocfg = self.gen_sumocfg()
-        self.sumocfg_nodet = self.gen_sumocfg(withdetector=False)
 
     def iscreated(self):
         """
         Check if the XMLs have been created
         :return:
         """
-        return os.path.isfile(self.sumocfg)
+        return os.path.isfile(self.roufile) and os.path.isfile(self.netfile)
 
-    def run(self, port, gui=False, withdet=True):
+    def init(self, port, init_time, gui=False, withdet=False):
         """
         Raise SUMO and run the simulation.
+        :param init_time: strategy to controll traffic light
         :param port: remote-port
         :param gui: with GUI
         :param withdet: with detector(e1,e2,e3)
         :return:
         """
+        self.init_time = init_time
         if gui:
             sumoBinary = checkBinary('sumo-gui')
         else:
@@ -92,11 +90,17 @@ class SUMOENV:
             sumocfg = self.sumocfg
         else:
             sumocfg = self.sumocfg_nodet
-
+        self.task_record_dir = os.path.join(self.output_dir, init_time)
+        if not os.path.isdir(self.task_record_dir):
+            os.makedirs(self.task_record_dir)
+        self.summary_file = os.path.join(self.task_record_dir, self.netname+'_summary.xml')
+        self.gen_detectors()
+        self.sumocfg = self.gen_sumocfg()
+        self.sumocfg_nodet = self.gen_sumocfg(withdetector=False)
         sumo_env = os.environ.copy()
         sumo_env['SUMO_HOME'] = sumo_root
-        # set_sumo_home = 'env SUMO_HOME=%s' % sumo_home
-        sumoProcess = subprocess.Popen([sumoBinary, '-c', sumocfg, '--remote-port', str(port)],
+        sumoProcess = subprocess.Popen([sumoBinary, '-c', sumocfg, '--remote-port', str(port),
+                                        '--summary', self.summary_file],
                                        env=sumo_env, stdout=sys.stdout, stderr=sys.stderr)
         # sumoProcess.wait()
         return sumoProcess
@@ -158,16 +162,14 @@ class SUMOENV:
         e1generator = os.path.join(sumo_home, 'output', 'generateTLSE1Detectors.py')
         e2generator = os.path.join(sumo_home, 'output', 'generateTLSE2Detectors.py')
         e3generator = os.path.join(sumo_home, 'output', 'generateTLSE3Detectors.py')
-        det_outputs = ['output/' + 'e%d_output.xml' % (i + 1) for i in range(3)]
+        det_outputs = ['output/' + self.init_time + '/' +
+                       'e%d_output.xml' % (i + 1) for i in range(3)]
         e_generators = [e1generator, e2generator, e3generator]
         paras = zip(e_generators, cycle(['-n']), cycle([self.netfile]),
                     cycle(['-o']), self.detectors, cycle(['-r']), det_outputs)
-        # detectors = list()
         for p in paras:
             p = list(p)
             d = subprocess.Popen(p, stdout=sys.stdout, stderr=sys.stderr)
-            # detectors.append(d)
-            # detectors = map(subprocess.Popen, paras)
 
     def gen_sumocfg(self, withdetector=True):
         """
@@ -179,9 +181,6 @@ class SUMOENV:
         conf_root = etree.Element("configuration",
                                   nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"},
                                   attrib={'noNamespaceSchemaLocation': xsd_file})
-        # xsd_loc = "http://sumo.dlr.de/xsd/net_file.xsd"
-        # xsd_loc_attrib = '{%s}noNamespaceSchemaLocation' %xsd_loc
-        # conf_root.set('xsi:noNamespaceSchemaLocation', "http://sumo.dlr.de/xsd/sumoConfiguration.xsd")
         # Set Input file
         conf_input = etree.SubElement(conf_root, 'input')
         netfile = self.netname + '.net.xml'  # Use relative address
@@ -196,9 +195,9 @@ class SUMOENV:
             input_addfile.set('value', " ".join(detectors))
         # Set Output file
         conf_output = etree.SubElement(conf_root, 'output')
-        netstatfile = 'output/' + self.netname + '_netstate.sumo.tr'
-        tripinfo = 'output/' + self.netname + '_tripinfo.xml'
-        vehroute = 'output/' + self.netname + '_vehroutes.xml'
+        netstatfile = 'output/' + self.init_time + '/' + self.netname + '_netstate.sumo.tr'
+        tripinfo = 'output/' + self.init_time + '/' + self.netname + '_tripinfo.xml'
+        vehroute = 'output/' + self.init_time + '/' + self.netname + '_vehroutes.xml'
         output_nets = etree.SubElement(conf_output, 'netstate-dump')
         output_nets.set('value', netstatfile)
         output_tripinfo = etree.SubElement(conf_output, 'tripinfo-output')
@@ -262,7 +261,6 @@ class SUMOENV:
         w_node.set('y', '0')
         w_node.set('type', 'priority')
         nodes_tree = etree.ElementTree(nodes_root)
-        # print(cross_nodes_file)
         nodes_tree.write(cross_nodes_file,
                          pretty_print=True, xml_declaration=True, encoding='utf-8')
         # Create edges
@@ -278,7 +276,6 @@ class SUMOENV:
         edges_tree.write(cross_edges_file,
                          pretty_print=True, xml_declaration=True, encoding='utf-8')
         netconvert = checkBinary('netconvert')
-        # print(self.netfile)
         netconvertor = subprocess.Popen([netconvert,
                                          '--node-files', cross_nodes_file,
                                          '--edge-files', cross_edges_file,

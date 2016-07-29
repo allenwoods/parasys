@@ -1,9 +1,18 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+@file       environ.py
+@author     Allen Woods
+@date       2016-07-29
+@version    16-7-29 下午2:51 ???
+SUMO simulation environment
+"""
 import os
 import sys
+import socket
 import pandas as pd
-import numpy as np
-from numba import jit
-from src.log_tools import timeit
+from SumoEnv.mission import lazy_police
+from .create_cfg import SumoCfg
 
 sumo_root = os.environ.get('SUMO_HOME')
 
@@ -21,8 +30,41 @@ except ImportError:
         'Please declare environment variable \'SUMO_HOME\' as the root directory '
         'of your sumo installation (it should contain folders \'bin\', \'tools\' and \'docs\')')
 
+def get_free_port():
+    s = socket.socket()
+    s.bind(('', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
 
-class TrafficSim:
+class SumoEnv:
+    def __init__(self, data_dir, task_name, xnumber=1, ynumber=1,
+                 xlength=1000, ylength=1000, net_type='grid', tls_type='static',
+                 rouprob=10, epoch_steps=3600, cocurrent=8):
+        self.data_dir = data_dir
+        self.task_name = task_name
+        self.xnumber = xnumber
+        self.ynumber = ynumber
+        self.xlength = xlength
+        self.ylength = ylength
+        self.net_type = net_type
+        self.tls_type = tls_type
+        self.rouprob = rouprob
+        self.epoch_steps = epoch_steps
+        self.sumo_env = None
+        self.traci_env = None
+        self.ports = [get_free_port() for i in range(cocurrent)]
+        self.current_step = 1
+
+    def reset(self):
+        self.sumo_env = SumoCfg(self.data_dir, self.task_name + str(self.current_step),
+                                self.xnumber, self.ynumber,
+                                self.xlength, self.ylength, self.net_type, self.tls_type,
+                                self.rouprob, self.epoch_steps)
+        self.current_step += 1
+
+
+class TraciEnv:
     def __init__(self, port, host='localhost', label='default', verbose=False):
         self.port = port
         self.host = host
@@ -31,9 +73,8 @@ class TrafficSim:
         self.directions = ['North', 'East', 'South', 'West']
         self.verbose = verbose
 
-    @timeit
     def run(self, update_steps=1, strategy='static'):
-        traci.init(self.port, host=self.host)
+        traci.start(self.port, host=self.host)
         step = 1
         self.tls = [TrafficLight(t) for t in trafficlights.getIDList()]
         log_list = []
@@ -42,17 +83,20 @@ class TrafficSim:
             print('Simulation Step: %d' % step)
             step += 1
         log = [item for sublist in log_list for item in sublist]  # Flatten the log
-        log = pd.DataFrame(log, columns=('step', 'traffic_light', 'direction',
-                                         "traffic_light_status", 'halting_number',
-                                         'waiting_number'))
+        log = self.log_to_pd(log)
         return log
+
+    @staticmethod
+    def log_to_pd(log):
+        return pd.DataFrame(log, columns=('step', 'traffic_light', 'direction',
+                                          "traffic_light_status", 'halting_number',
+                                          'waiting_time'))
 
     @staticmethod
     def close():
         traci.close()
         sys.stdout.flush()
 
-    @timeit
     def sim_step(self, update_steps, strategy):
         traci.simulationStep()
         current_step = int(simulation.getCurrentTime() / 1000)
@@ -61,27 +105,10 @@ class TrafficSim:
             log_list.append(t.update(current_step))
             if self.verbose:
                 t.show()
-            if strategy == 'haltest':
-                haltest(update_steps, t, self.directions)
+            if strategy == 'lazy_police':
+                lazy_police(update_steps, t, self.directions)
         log = [item for sublist in log_list for item in sublist]  # Flatten the log
         return log
-
-    @staticmethod
-    def log(traffic_light):
-        """
-        Log states sequence of simulation, including halting number and waiting time of all edges.
-        :return:
-        """
-        pass
-
-
-def haltest(update_steps, t, directions):
-    if (simulation.getCurrentTime() % 100) % update_steps == 0:
-        max_halt = max([t.edges[d].edge_status['halt'] for d in directions])
-        passway = (direction for direction, edge in t.edges.items()
-                   if edge.edge_status['halt'] == max_halt).__next__()  # Search keys according to value
-        print('Haltest: %s' % passway)
-        t.set_phase(passway)
 
 
 class TrafficLight:

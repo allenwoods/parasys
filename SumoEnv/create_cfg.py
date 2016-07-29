@@ -1,3 +1,12 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+@file       environ.py
+@author     Allen Woods
+@date       2016-07-29
+@version    16-7-29 下午2:51 ???
+SUMO simulation environment
+"""
 import os
 import subprocess
 import sys
@@ -17,9 +26,9 @@ except ImportError:
         "of your sumo installation (it should contain folders 'bin', 'tools' and 'docs')")
 
 
-class SumoEnv:
+class SumoCfg:
     def __init__(self, data_dir, net_name, xnumber, ynumber,
-                 xlength=400, ylength=400, net_type='grid', tls_type='static', rouprob=10, steps=3600):
+                 xlength=1000, ylength=1000, net_type='grid', tls_type='static', rouprob=10, steps=3600):
         """
         Initialize SUMO environment.
         :param data_dir: where XML saved
@@ -56,7 +65,7 @@ class SumoEnv:
         self.sumocfg = os.path.join(self.data_dir, self.netname, self.netname + '.sumo.cfg')
         self.sumocfg_nodet = os.path.join(self.data_dir, self.netname, self.netname + '_nodet.sumo.cfg')
 
-    def create(self):
+    def make(self):
         """
         Create the XML needed for simulation
         :return:
@@ -72,7 +81,7 @@ class SumoEnv:
         """
         return os.path.isfile(self.roufile) and os.path.isfile(self.netfile)
 
-    def init(self, port, init_time, gui=False, withdet=False):
+    def start(self, port, init_time, gui=False, withdet=False):
         """
         Raise SUMO and run the simulation.
         :param init_time: strategy to controll traffic light

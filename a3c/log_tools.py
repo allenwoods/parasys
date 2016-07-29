@@ -1,3 +1,12 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+@file       environ.py
+@author     Allen Woods
+@date       2016-07-29
+@version    16-7-29 下午2:51 ???
+SUMO simulation environment
+"""
 import time
 from functools import wraps
 

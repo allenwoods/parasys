@@ -35,16 +35,16 @@ class TrafficSim(object):
         self.sumo = None
         self.traci = None
 
-    def raise_sumo(self):
+    def reset_sumo(self):
         self.sumo =self.env.reset()
 
     def get_initial_state(self, history_length):
         """
-        Resets the atari game, clears the state buffer
+        Resets SUMO, clears the state buffer
         """
         # Clear the state buffer
         self.state_buffer = deque()
-        x_t, r_t, terminal, i = self.env.step()
+        x_t, r_t, terminal, i = self.env.step(self.thread_label)
         self.cross_num = len(self.env.tls)
         self.cross_status = len(self.env.traci_env.directions)
         x_t = self.get_preprocessed_status(x_t)

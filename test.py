@@ -11,7 +11,7 @@ import numpy as np
 from multiprocessing import Process, Pool, cpu_count
 from multiprocessing.pool import ThreadPool
 from functools import partial
-from models.ac_model import a_loss, v_loss, build_graph
+from Model.ac_model import a_loss, v_loss, build_graph
 
 def func():
     pass

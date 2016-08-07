@@ -13,6 +13,7 @@ import time
 import socket
 from subprocess import Popen, PIPE
 import pandas as pd
+import numpy as np
 from time import strftime as current_time
 from itertools import product
 from .create_cfg import SumoCfg
@@ -45,7 +46,7 @@ def get_free_port():
 class SumoEnv:
     def __init__(self, data_dir, task_name, xnumber=1, ynumber=1,
                  xlength=1000, ylength=1000, net_type='grid', tls_type='static',
-                 rouprob=10, epoch_steps=3600, gui=False, port=None):
+                 rouprob=10, epoch_steps=3600, gui=False, port=None, update_step=15):
         self.data_dir = data_dir
         self.task_name = task_name
         self.thread_label = task_name
@@ -67,35 +68,40 @@ class SumoEnv:
         self.gui = gui
         self.tls = []
         self.actions, self.action_space_n = self.get_action_space()
+        self.update_step = update_step
 
     def get_action_space(self):
         direction = ['North', 'East']
-        actions = direction * (self.xnumber * self.ynumber)
+        actions = list(product(direction, repeat=self.xnumber * self.ynumber))
         return actions, len(actions)
 
     def reset(self):
         mission_start_time = current_time('%Y%m%d%H%M%S')
         if self.traci_env is not None:
-            self.traci_env.close()
+            try:
+                self.traci_env.close()
+            except KeyError:
+                print("Traci is not running")
         self.sumo_cfg = SumoCfg(self.data_dir, self.task_name + str(self.current_epoch),
                                 self.xnumber, self.ynumber,
                                 self.xlength, self.ylength, self.net_type, self.tls_type,
                                 self.rouprob, self.epoch_steps)
         print("Sumo_cfg created")
         self.sumo_cfg.make()
-        sumoCMD, run_env = self.sumo_cfg.get_start_cmd(self.port, mission_start_time, gui=self.gui)
+        sumo_cmd, run_env = self.sumo_cfg.get_start_cmd(self.port, mission_start_time, gui=self.gui)
         print("Sumo Process Raised")
         # time.sleep(3)
         print("Try Raise Traci")
         self.traci_env = TraciEnv(self.port, label=self.thread_label)
-        print("Get here")
-        self.traci_env.start(sumoCMD, run_env)
+        # print("Get here")
+        self.traci_env.start(sumo_cmd)
         # traci.switch(self.thread_label)
         # traci.init(self.port)
         # time.sleep(3)
         self.tls = self.traci_env.tls
         self.current_epoch += 1
-        return sumoCMD
+        s_0 = self.parse_log(self.step(None)[0])
+        return s_0
 
     def step(self, action=None):
         traci.switch(self.thread_label)
@@ -103,6 +109,18 @@ class SumoEnv:
         terminate = self.traci_env.is_terminated()
         info = None
         return log, reward_list, terminate, info
+
+    def close(self):
+        self.traci_env.close()
+
+    def parse_log(self, log, index='halt'):
+        target = {'halt': 4, 'wait': 5}[index]
+        cross_num = int(len(log) / 4)
+        states = []
+        for i in range(cross_num):
+            cross_log = log[4 * i: 4 * (i + 1)]
+            states.append([item[target] for item in cross_log])
+        return np.array(states).reshape((1, self.xnumber * self.ynumber, 4))
 
 
 class TraciEnv:
@@ -113,15 +131,15 @@ class TraciEnv:
         self.directions = ['North', 'East', 'South', 'West']
         self.verbose = verbose
 
-    def start(self, cmd, envs):
-        # traci.start(cmd, port=int(self.port), label=self.label)
+    def start(self, cmd):
+        traci.start(cmd, port=int(self.port), label=self.label)
         # time.sleep(5)
         # print(cmd + ['--remote-port', self.port])
-        sumoProcess = Popen(cmd + ['--remote-port', self.port],
-                            env=envs, stdout=PIPE, stderr=PIPE)
+        # sumoProcess = Popen(cmd + ['--remote-port', self.port],
+        #                     env=envs, stdout=PIPE, stderr=PIPE)
         time.sleep(3)
         print("SUMO PROCESS RAISED!")
-        traci.init(port=int(self.port), label=self.label)
+        # traci.init(port=int(self.port), label=self.label)
         # step = 1
         self.tls = [TrafficLight(t) for t in trafficlights.getIDList()]
         # log_list = []
@@ -233,9 +251,14 @@ class TrafficLight:
                            self.tls_status[d],
                            self.edges[d].edge_status['halt'],
                            self.edges[d].edge_status['wait']])
-        max_ns = max([self.edges['North'].edge_status['halt'], self.edges['South'].edge_status['halt']])
-        max_ew = max([self.edges['East'].edge_status['halt'], self.edges['West'].edge_status['halt']])
-        reward = abs(max_ns - max_ew)
+        # max_ns = max([self.edges['North'].edge_status['halt'],
+        #               self.edges['South'].edge_status['halt']])
+        # max_ew = max([self.edges['East'].edge_status['halt'],
+        #               self.edges['West'].edge_status['halt']])
+        # reward = - abs(max_ns - max_ew)  # Define by paper
+        reward = min([(1 - self.edges[d].edge_status['halt'] / (self.edges[d].edge_status['veh'] + 0.001))
+                      for d in self.directions])
+        print("TLS reward %f" % reward)
         return logger, reward
 
 
@@ -252,11 +275,13 @@ class Edge:
     def update(self):
         self.lane_0_status = self.get_lane_status(self.lane_0_id)
         self.lane_1_status = self.get_lane_status(self.lane_1_id)
-        self.edge_status = {'halt': self.lane_0_status['halt'] + self.lane_1_status['halt'],
+        self.edge_status = {'veh': self.lane_0_status['veh'] + self.lane_1_status['veh'],
+                            'halt': self.lane_0_status['halt'] + self.lane_1_status['halt'],
                             'wait': self.lane_0_status['wait'] + self.lane_1_status['wait']}
 
     @staticmethod
     def get_lane_status(laneid):
+        vehicle_number = lane.getLastStepVehicleNumber(laneid)
         halt_number = lane.getLastStepHaltingNumber(laneid)
         waiting_time = lane.getWaitingTime(laneid)
-        return {'halt': halt_number, 'wait': waiting_time}
+        return {'veh': vehicle_number, 'halt': halt_number, 'wait': waiting_time}

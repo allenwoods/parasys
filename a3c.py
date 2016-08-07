@@ -17,11 +17,11 @@ import numpy as np
 import time
 
 from SumoEnv.simulation import SumoEnv
-from models.a3c_model import build_policy_and_value_networks
+from Model.a3c_model import build_policy_and_value_networks
 from keras import backend as K
 from keras.optimizers import RMSprop
 from SumoEnv.environ import TrafficSim
-from main import DATA_DIR, CFG_DIR, NET_DIR, SUMMARY_DIR
+from test_async import DATA_DIR, CFG_DIR, NET_DIR, SUMMARY_DIR
 
 
 # Path params

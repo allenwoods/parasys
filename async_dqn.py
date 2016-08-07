@@ -18,7 +18,7 @@ import sys
 import random
 import numpy as np
 import time
-from models.q_model import build_network
+from Model.q_model import build_network
 from keras import backend as K
 
 flags = tf.app.flags

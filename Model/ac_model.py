@@ -7,7 +7,7 @@
 @version    16-8-7 下午3:57 ???
 Some other Description
 """
-from keras.layers import Input, Dense,  GRU, Convolution1D, Reshape, Flatten, BatchNormalization
+from keras.layers import Input, Dense,  GRU, Convolution1D, Reshape, Flatten, BatchNormalization, Dropout, GaussianDropout
 from keras.models import Model
 from keras.regularizers import l2
 from keras import backend as K
@@ -35,7 +35,9 @@ def build_graph(history_length, cross_num, cross_status, v_dim, a_dim):
     # a_probs = GRU(a_dim, input_length=15, activation='softmax', name='a_probs')(a_hidden)
     a_hidden = Flatten()(inputs)
     a_hidden = Dense(30, activation='relu', W_regularizer=l2(0.01))(a_hidden)
+    a_hidden = Dropout(0.1)(a_hidden)
     a_hidden = Dense(30, activation='relu', W_regularizer=l2(0.01))(a_hidden)
+    a_hidden = Dropout(0.1)(a_hidden)
     a_hidden = Dense(30, activation='relu', W_regularizer=l2(0.01))(a_hidden)
     # a_hidden = BatchNormalization()(a_hidden)
     a_probs = Dense(a_dim, activation='softmax', name='a_probs')(a_hidden)
@@ -45,11 +47,3 @@ def build_graph(history_length, cross_num, cross_status, v_dim, a_dim):
     ac_net = Model(input=inputs, output=[v_values, a_probs])
     return ac_net
 
-
-class Main(object):
-    def __init__(self):
-        pass
-
-
-if __name__ == '__main__':
-    pass

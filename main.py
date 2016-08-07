@@ -21,7 +21,7 @@ from SumoEnv.simulation import TraciEnv, SumoEnv
 from SumoEnv.environ import TrafficSim
 from time import strftime as current_time
 from Model.ac_model import a_loss, v_loss, build_graph
-from keras.callbacks import EarlyStopping, TensorBoard
+from keras.callbacks import EarlyStopping, TensorBoard, ModelCheckpoint
 import keras.models
 
 DATA_DIR = os.path.join(os.getcwd(), 'data')
@@ -68,8 +68,8 @@ def init_sumo(cfg_dir, net_name, init_time, xnumber, ynumber):
 
 
 def egreedy(a_space, t, current_ix):
-    e = np.max([0.001, 1 - t / 1500])
-    weights = [e, 1-e]
+    e = np.max([0.001, 1 - t / 1000])
+    weights = [e, 1 - e]
     a = [np.random.choice(a_space), current_ix]
     ix = np.random.choice(2, p=weights)
     a_t = a[ix]
@@ -94,7 +94,7 @@ def state_reward_generator(s_t, env, net, T, index='halt'):
             print('a_probs')
             print(a_probs)
             current_at = np.argmax(a_probs)
-            a_t = egreedy(env.action_space_n, T+step, current_at)
+            a_t = egreedy(env.action_space_n, T + step, current_at)
             # a_p = a_probs[0, a_t]
             log, r_t1, terminate, info = env.step(actions[a_t])
             r_t1 = np.mean(r_t1)
@@ -106,7 +106,7 @@ def state_reward_generator(s_t, env, net, T, index='halt'):
             print('r_t')
             print(r_t1)
             advance = np.zeros((1, env.action_space_n))
-            advance[0, a_t] = np.array(np.max([np.subtract(r_t, v_t), 0.001])).reshape(1,)
+            advance[0, a_t] = np.array(np.subtract(r_t, v_t)).reshape(1, )
             # advance = np.array(np.max([np.log(a_p)*np.subtract(r_t, v_t), 0.01])).reshape(1,)
             print('advance')
             print(advance)
@@ -120,7 +120,7 @@ def state_reward_generator(s_t, env, net, T, index='halt'):
             A.append(np.zeros(1))
             next_s0 = None
         step += 1
-    if r_t1 < 0.01:
+    if np.min(advance) < 0:
         terminate = True
     return S, A, R, next_s0, terminate
 
@@ -135,15 +135,25 @@ def parse_log(log, index='halt'):
     return np.array(states)
 
 
-def train_ac_net(env, ac_net):
+def train_ac_net(env, ac_net, tf_log_dir):
     terminate = False
-    next_s0 = sim_env.reset()
+    next_s0 = env.reset()
     while not terminate:
-        sim_step = traci.simulation.getCurrentTime()/1000
+        sim_step = traci.simulation.getCurrentTime() / 1000
         S, A, R, next_s0, terminate = state_reward_generator(next_s0, env, ac_net, sim_step)
         for h in zip(S, A, R):
             ac_net.fit(h[0], {'a_probs': h[1], 'v_values': h[2]},
                        batch_size=1, nb_epoch=1, callbacks=[])
+
+
+def task(cfg_dir, summary_dir, net_dir, xnumber, ynumber,
+         history_length, cross_num, cross_status, v_dim, a_dim):
+    sim_env = SumoEnv(cfg_dir, current_time('%Y%m%d%H%M%S'), xnumber, ynumber, gui=True)
+    ac_net = build_graph(history_length, cross_num, cross_status, v_dim, a_dim)
+    ac_net.compile(optimizer='rmsprop', loss={'v_values': v_loss, 'a_probs': a_loss})
+    train_ac_net(sim_env, ac_net, summary_dir)
+    ac_net.save_weights(os.path.join(net_dir, current_time('%Y%m%d%H%M%S') + '.h5'))
+    sim_env.close()
 
 
 if __name__ == '__main__':
@@ -154,20 +164,17 @@ if __name__ == '__main__':
     history_length = 15
     v_dim = 1
     a_dim = 2 ** cross_num
+    T = 0
+    TMAX = 10000
     task_cfg_dir = os.path.join(CFG_DIR, 'ac')
     task_net_dir = os.path.join(NET_DIR, 'ac')
-    # sumo_cmd = init_sumo(task_cfg_dir, 'a3c', current_time('%Y%m%d%H%M%S'), xnumber, ynumber)
-    # sim = TraciEnv(get_free_port())
-    # sim.start(sumo_cmd)
-    # for i in range(1000):
-    #     sim.sim_step(None)
-    # traci.close()
-    sim_env = SumoEnv(task_cfg_dir, current_time('%Y%m%d%H%M%S'), xnumber, ynumber, gui=True)
-    ac_net = build_graph(history_length, cross_num, cross_status, v_dim, a_dim)
-    ac_net.compile(optimizer='rmsprop', loss={'v_values': v_loss, 'a_probs': a_loss})
-    train_ac_net(sim_env, ac_net)
-    ac_net.save(os.path.join(task_net_dir, current_time('%Y%m%d%H%M%S') + '.h5'))
-    #
-    # print(next(state_reward_generator(s_0, sim_env, None)))
-    sim_env.close()
+    task_summary_dir = os.path.join(SUMMARY_DIR, 'ac')
+    if not os.path.isdir(task_net_dir):
+        os.mkdir(task_net_dir)
+    if not os.path.isdir(task_summary_dir):
+        os.mkdir(task_summary_dir)
 
+    while T < TMAX:
+        task(task_cfg_dir, task_summary_dir, task_net_dir,
+             xnumber, ynumber, history_length, cross_num, cross_status, v_dim, a_dim)
+        T += 1

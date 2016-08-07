@@ -147,8 +147,8 @@ def train_ac_net(env, ac_net, tf_log_dir):
 
 
 def task(cfg_dir, summary_dir, net_dir, xnumber, ynumber,
-         history_length, cross_num, cross_status, v_dim, a_dim):
-    sim_env = SumoEnv(cfg_dir, current_time('%Y%m%d%H%M%S'), xnumber, ynumber, gui=True)
+         history_length, cross_num, cross_status, v_dim, a_dim, gui=False):
+    sim_env = SumoEnv(cfg_dir, current_time('%Y%m%d%H%M%S'), xnumber, ynumber, gui=gui)
     ac_net = build_graph(history_length, cross_num, cross_status, v_dim, a_dim)
     ac_net.compile(optimizer='rmsprop', loss={'v_values': v_loss, 'a_probs': a_loss})
     train_ac_net(sim_env, ac_net, summary_dir)

@@ -38,7 +38,7 @@ def lazy_police(update_steps, t, directions):
         passway = (direction for direction, edge in t.edges.items()
                    if edge.edge_status['halt'] == max_halt).__next__()  # Search keys according to value
         print('Haltest: %s' % passway)
-        t.set_phase(passway)
+        t.set_passway(passway)
 
 
 class AutoEncoder:

@@ -1,84 +1,72 @@
-import optparse
-import os
-from time import strftime as current_time
-from SumoEnv.environ import TrafficSim
-from SumoEnv.simulation import SumoEnv
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+@file       test.py
+@author     Allen Woods
+@date       2016-08-07
+@version    16-8-7 下午3:59 ???
+Some other Description
+"""
+import numpy as np
+from multiprocessing import Process, Pool, cpu_count
+from multiprocessing.pool import ThreadPool
+from functools import partial
+from models.ac_model import a_loss, v_loss, build_graph
+
+def func():
+    pass
 
 
-# SET SUMO HOME
-os.environ.setdefault('SUMO_HOME', '/usr/share/sumo')
+class Main(object):
+    def __init__(self):
+        pass
 
-DATA_DIR = os.path.join(os.getcwd(), 'data')
-CFG_DIR = os.path.join(DATA_DIR, 'cfg')
-NET_DIR = os.path.join(DATA_DIR, 'network')
-SUMMARY_DIR = os.path.join(DATA_DIR, 'summary')
+def actor_learner_init(ac_net_thread):
+    ac_net_thread.compile(optimizer='rmsprop',loss={'v_values': v_loss , 'a_probs': a_loss})
 
+def actor_learner_thread(net_thread, thread_id, samples, rewards):
+    # ac_net_thread.compile(optimizer='rmsprop',loss={'v_values': v_loss , 'a_probs': a_loss})
+    print('Start Learner %d'%thread_id)
+    s_t = samples[thread_id].reshape(1,15,9,4)
+    r_t = rewards[thread_id]
+    s_t1 = net_thread.predict(s_t)[0]
+    advance = r_t - s_t1
+    r_t = np.array([[r_t]])
+    print('Learner %d Fitting...'%thread_id)
+    net_thread.fit(s_t, {'a_probs':advance, 'v_values':r_t}, verbose=0)
+    return net_thread.get_weights()
 
-def get_options():
-    opt_parser = optparse.OptionParser()
-    opt_parser.add_option("--nogui", action="store_true",
-                          default=False, help="run the commandline version of sumo")
-    options, args = opt_parser.parse_args()
-    return options
-
+def update_main_weights(net_thread_weights, old_W, net_main):
+    delta = np.subtract(net_thread_weights, old_W)
+    new_W = np.add(net_main.get_weights(), delta)
+    net_main.set_weights(new_W)
+    print('Main net updated')
+    print(net_main.get_weights())
 
 if __name__ == '__main__':
-    mission_start_time = current_time('%Y%m%d%H%M%S')
-    task_cfg_dir = os.path.join(CFG_DIR, 'a3c')
-    env = SumoEnv(task_cfg_dir, mission_start_time,
-                  xnumber=3, ynumber=3, gui=False)
-    task = TrafficSim(env)
-    s_t = task.get_initial_state()
-    s_t1, r_t, terminated, info = task.step(1)
-    print(s_t1)
-    print(s_t1.shape)
-    # print("S_t1%s" % str(s_t1))
-    # print("R_t1%s" % str(r_t))
-    # print("Terminated:%s" % str(terminated))
+    concurrent = cpu_count()
+    samples = [np.random.random([15, 9, 4]) for i in range(concurrent)]  # Example State
+    rewards = [np.random.random() for i in range(concurrent)]
+    cross_num = 9
+    cross_status = 4
+    history_length = 15
+    v_dim = 1
+    a_dim = 2 ** cross_num
 
-    # sumo, x_0 = env.reset()
-    # print(x_0)
-    # options = get_options()
-    # # Generate a 3x3 intersections network
-    # env_1x1_static = SumoCfg(data_dir, '1x1_static', 1, 1, tls_type='static')
-    # env_1x1_actuated = SumoCfg(data_dir, '1x1_actuated', 1, 1, tls_type='actuated')
-    # env_3x3_static = SumoCfg(data_dir, '3x3_static', 3, 3, tls_type='static')
-    # env_3x3_actuated = SumoCfg(data_dir, '3x3_actuated', 3, 3, tls_type='actuated')
-    # envs = [env_1x1_static, env_1x1_actuated, env_3x3_static, env_3x3_actuated]
-    # for e in envs:
-    #     if not e.iscreated():
-    #         e.make()
-    # # the port used for communicating with sumo instance
-    # PORT = 8875
-    #
-    # # Raise SUMO
-    # mission_start_time = current_time('%Y%m%d%H%M%S')
-    # for e in envs:
-    #     sumoProcess = e.start(PORT, mission_start_time, gui=True)
-    #     get_tls_status = TrafficSim(PORT)
-    #     logger = get_tls_status.run(update_steps=15)
-    #     get_tls_status.close()
-    #     # sumoProcess.wait()
-    #     logger.to_csv(os.path.join(e.task_record_dir, e.netname + '_log.csv'), index=False)
+    ac_net_main = build_graph(history_length, cross_num, cross_status, v_dim, a_dim)
+    ac_net_threads = [build_graph(history_length, cross_num, cross_status, v_dim, a_dim) for i in range(concurrent)]
 
-    # env_1x1_halts = SumoEnv(data_dir, '1x1_haltest', 1, 1, tls_type='static')
-    # env_3x3_halts = SumoEnv(data_dir, '3x3_haltest', 1, 1, tls_type='static')
-    # halt_envs = [env_1x1_halts, env_3x3_halts]
-    # for e in halt_envs:
-    #     if not e.iscreated():
-    #         e.create()
-    # # the port used for communicating with sumo instance
-    # PORT = 8875
+    # actor_pool = ThreadPool()
+    for i in range(concurrent):
+        actor_learner_init(ac_net_threads[i])
 
-    # Raise SUMO
-    # sumoProcess = env_1x1_static.init(PORT, 'haltest', gui=True)
-    # for e in halt_envs:
-    #     for stepsize in range(15, 31):
-    #         mission_start_time = current_time('%Y%m%d%H%M%S')
-    #         sumoProcess = e.init(PORT, mission_start_time)
-    #         get_tls_status = TrafficSim(PORT)
-    #         logger = get_tls_status.run(update_steps=stepsize, strategy='lazy_police')
-    #         get_tls_status.close()
-    #         # sumoProcess.wait()
-    #         logger.to_csv(os.path.join(e.task_record_dir, e.netname +
-    #                                    '_step%s_log.csv' % str(stepsize)), index=False)
+    old_w = ac_net_main.get_weights()
+    print(old_w)
+    update_main = partial(update_main_weights, old_W=old_w, net_main=ac_net_main)
+
+    for i in range(concurrent):
+        # actor_pool.apply_async(actor_learner_thread, args=(ac_net_threads[i], i, samples, rewards),
+                               # callback=update_main)
+        update_main(actor_learner_thread(ac_net_threads[i], i, samples, rewards))
+    # actor_pool.close()
+    # actor_pool.join()

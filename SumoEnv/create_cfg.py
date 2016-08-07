@@ -9,6 +9,7 @@ SUMO simulation environment
 """
 import os
 import subprocess
+from subprocess import PIPE
 import sys
 from itertools import cycle
 
@@ -17,6 +18,7 @@ from lxml import etree
 sumo_root = os.environ.get('SUMO_HOME')
 
 try:
+    print('SUMO_ROOT: %s'%sumo_root)
     sumo_home = os.path.join(sumo_root, 'tools')
     sys.path.append(sumo_home)
     from sumolib import checkBinary
@@ -62,8 +64,8 @@ class SumoCfg:
         self.roufile = os.path.join(self.net_dir, self.netname + '.rou.xml')
         self.detectors = [os.path.join(self.net_dir, self.netname + '_e%d.add.xml' % (i + 1))
                           for i in range(3)]
-        self.sumocfg = os.path.join(self.data_dir, self.netname, self.netname + '.sumo.cfg')
-        self.sumocfg_nodet = os.path.join(self.data_dir, self.netname, self.netname + '_nodet.sumo.cfg')
+        self.sumocfg = os.path.join(self.net_dir, self.netname + '.sumo.cfg')
+        self.sumocfg_nodet = os.path.join(self.net_dir, self.netname + '_nodet.sumo.cfg')
 
     def make(self):
         """
@@ -81,7 +83,7 @@ class SumoCfg:
         """
         return os.path.isfile(self.roufile) and os.path.isfile(self.netfile)
 
-    def start(self, port, init_time, gui=False, withdet=False):
+    def get_start_cmd(self, port, init_time, gui=False, withdet=False):
         """
         Raise SUMO and run the simulation.
         :param init_time: strategy to controll traffic light
@@ -99,7 +101,8 @@ class SumoCfg:
             sumocfg = self.sumocfg
         else:
             sumocfg = self.sumocfg_nodet
-        self.task_record_dir = os.path.join(self.output_dir, init_time)
+        # self.task_record_dir = os.path.join(self.output_dir, init_time)
+        self.task_record_dir = self.output_dir
         if not os.path.isdir(self.task_record_dir):
             os.makedirs(self.task_record_dir)
         self.summary_file = os.path.join(self.task_record_dir, self.netname+'_summary.xml')
@@ -108,11 +111,13 @@ class SumoCfg:
         self.sumocfg_nodet = self.gen_sumocfg(withdetector=False)
         sumo_env = os.environ.copy()
         sumo_env['SUMO_HOME'] = sumo_root
-        sumoProcess = subprocess.Popen([sumoBinary, '-c', sumocfg, '--remote-port', str(port),
-                                        '--summary', self.summary_file],
-                                       env=sumo_env, stdout=sys.stdout, stderr=sys.stderr)
+        # sumoProcess = subprocess.Popen([sumoBinary, '-c', sumocfg, '--remote-port', str(port),
+        #                                 '--summary', self.summary_file],
+        #                                env=sumo_env, stdout=PIPE, stderr=PIPE)
+        sumoCMD = [sumoBinary, '-c', sumocfg, '--summary', self.summary_file,
+                   '--time-to-teleport', '-1']
         # sumoProcess.wait()
-        return sumoProcess
+        return sumoCMD, sumo_env
 
     def gen_network(self, xnumber, ynumber, xlength, ylength,
                     nettype='grid', tlstype='static'):
@@ -204,15 +209,18 @@ class SumoCfg:
             input_addfile.set('value', " ".join(detectors))
         # Set Output file
         conf_output = etree.SubElement(conf_root, 'output')
-        netstatfile = 'output/' + self.init_time + '/' + self.netname + '_netstate.sumo.tr'
-        tripinfo = 'output/' + self.init_time + '/' + self.netname + '_tripinfo.xml'
-        vehroute = 'output/' + self.init_time + '/' + self.netname + '_vehroutes.xml'
+        netstatfile = 'output/' + self.netname + '_netstate.sumo.tr'
+        tripinfo = 'output/' + '/' + self.netname + '_tripinfo.xml'
+        vehroute = 'output/' + self.netname + '_vehroutes.xml'
+        queue = 'output/' + self.netname + '_queues.xml'
         output_nets = etree.SubElement(conf_output, 'netstate-dump')
         output_nets.set('value', netstatfile)
         output_tripinfo = etree.SubElement(conf_output, 'tripinfo-output')
         output_tripinfo.set('value', tripinfo)
         output_vehroute = etree.SubElement(conf_output, 'vehroute-output')
         output_vehroute.set('value', vehroute)
+        output_queue = etree.SubElement(conf_output, 'queue-output')
+        output_queue.set('value', queue)
         # Set Time
         conf_time = etree.SubElement(conf_root, 'time')
         time_begin = etree.SubElement(conf_time, 'begin')
@@ -270,6 +278,7 @@ class SumoCfg:
         w_node.set('y', '0')
         w_node.set('type', 'priority')
         nodes_tree = etree.ElementTree(nodes_root)
+        print(cross_nodes_file)
         nodes_tree.write(cross_nodes_file,
                          pretty_print=True, xml_declaration=True, encoding='utf-8')
         # Create edges

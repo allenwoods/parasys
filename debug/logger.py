@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-@file       environ.py
+@file       logger.py
 @author     Allen Woods
-@date       2016-07-29
-@version    16-7-29 下午2:51 ???
-SUMO simulation environment
+@date       2016-08-02
+@version    16-8-2 上午8:51 ???
+Some other Description
 """
 import time
 from functools import wraps

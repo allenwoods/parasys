@@ -25,6 +25,8 @@ from keras.callbacks import EarlyStopping, TensorBoard, ModelCheckpoint
 import keras.models
 
 DATA_DIR = os.path.join(os.getcwd(), 'data')
+if not os.path.isdir(DATA_DIR):
+    os.mkdir(DATA_DIR)
 CFG_DIR = os.path.join(DATA_DIR, 'cfg')
 NET_DIR = os.path.join(DATA_DIR, 'network')
 SUMMARY_DIR = os.path.join(DATA_DIR, 'summary')
@@ -170,9 +172,9 @@ if __name__ == '__main__':
     task_net_dir = os.path.join(NET_DIR, 'ac')
     task_summary_dir = os.path.join(SUMMARY_DIR, 'ac')
     if not os.path.isdir(task_net_dir):
-        os.mkdir(task_net_dir)
+        os.makedirs(task_net_dir)
     if not os.path.isdir(task_summary_dir):
-        os.mkdir(task_summary_dir)
+        os.makedirs(task_summary_dir)
 
     while T < TMAX:
         task(task_cfg_dir, task_summary_dir, task_net_dir,

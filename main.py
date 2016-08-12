@@ -203,10 +203,8 @@ def evaluate_ac_net(env, net, log_file, current_epoch):
         net_halt += sum([traci.edge.getLastStepHaltingNumber(e) for e in edges])
         print('net_halt: %d at step %d' % (net_halt, step))
         step += 1
-    summary.loc[len(log)] = [current_epoch, static_halt, net_halt]
+    summary.loc[len(summary)] = [current_epoch, static_halt, net_halt]
     summary.to_csv(log_file, index=False)
-
-
 
 
 def traci_step(label):

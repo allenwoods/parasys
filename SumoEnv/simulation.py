@@ -75,26 +75,29 @@ class SumoEnv:
         actions = list(product(direction, repeat=self.xnumber * self.ynumber))
         return actions, len(actions)
 
-    def reset(self):
+    def reset(self, phase='Train'):
         mission_start_time = current_time('%Y%m%d%H%M%S')
         if self.traci_env is not None:
             try:
                 self.traci_env.close()
             except KeyError:
                 print("Traci is not running")
-        self.sumo_cfg = SumoCfg(self.data_dir, self.task_name + str(self.current_epoch),
+        if phase is 'Train':
+            self.sumo_cfg = SumoCfg(self.data_dir, self.task_name + str(self.current_epoch),
                                 self.xnumber, self.ynumber,
                                 self.xlength, self.ylength, self.net_type, self.tls_type,
                                 self.rouprob, self.epoch_steps)
-        print("Sumo_cfg created")
-        self.sumo_cfg.make()
+            print("Sumo_cfg created")
+            self.sumo_cfg.make()
         sumo_cmd, run_env = self.sumo_cfg.get_start_cmd(self.port, mission_start_time, gui=self.gui)
-        print("Sumo Process Raised")
-        # time.sleep(3)
         print("Try Raise Traci")
         self.traci_env = TraciEnv(self.port, label=self.thread_label)
         # print("Get here")
-        self.traci_env.start(sumo_cmd)
+        try:
+            self.traci_env.start(sumo_cmd)
+        except:
+            self.sumo_cfg.make()
+            self.traci_env.start(sumo_cmd)
         # traci.switch(self.thread_label)
         # traci.init(self.port)
         # time.sleep(3)
@@ -256,7 +259,7 @@ class TrafficLight:
         # max_ew = max([self.edges['East'].edge_status['halt'],
         #               self.edges['West'].edge_status['halt']])
         # reward = - abs(max_ns - max_ew)  # Define by paper
-        reward = min([(1 - self.edges[d].edge_status['halt'] / (self.edges[d].edge_status['veh'] + 0.001))
+        reward = min([(1 - (self.edges[d].edge_status['halt'] / (self.edges[d].edge_status['veh'] + 0.001)))
                       for d in self.directions])
         print("TLS reward %f" % reward)
         return logger, reward

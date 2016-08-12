@@ -174,7 +174,7 @@ def evaluate_ac_net_sync(env, ac_net, log_dir):
         step += 1
 
 
-def evaluate_ac_net(env, net, log_file, current_epoch):
+def evaluate_ac_net(env, net, log_file, current_epoch, net_file):
     actions = env.actions
     s = env.reset()
     edges = traci.edge.getIDList()
@@ -187,6 +187,7 @@ def evaluate_ac_net(env, net, log_file, current_epoch):
         summary['epoch'] = 0
         summary['static'] = 0
         summary['net'] = 0
+        summary['net_file'] = 0
     while traci.simulation.getMinExpectedNumber() > 0 and step < env.epoch_steps:
         log, r_t1, terminate, info = env.step()
         static_halt += np.sum(env.parse_log(log))
@@ -204,7 +205,7 @@ def evaluate_ac_net(env, net, log_file, current_epoch):
         # net_halt += sum([traci.edge.getLastStepHaltingNumber(e) for e in edges])
         print('net_halt: %d at step %d' % (net_halt, step))
         step += 1
-    summary.loc[len(summary)] = [current_epoch, static_halt, net_halt]
+    summary.loc[len(summary)] = [current_epoch, static_halt, net_halt, net_file]
     summary.to_csv(log_file, index=False)
 
 
@@ -243,14 +244,14 @@ def evaluate(cfg_dir, summary_dir, net_dir, xnumber, ynumber,
     net_files = sorted(os.listdir(net_dir))
     with tf.device('/cpu:0'):
         ac_net = build_graph(history_length, cross_num, cross_status, v_dim, a_dim)
-    log_file = os.path.join(summary_dir, 'evaluation_1.csv')
+    log_file = os.path.join(summary_dir, 'evaluation.csv')
     epoch = 0
     for f in net_files:
         print(f)
         net_weights = os.path.join(net_dir, f)
         ac_net.load_weights(net_weights)
         sim_env = SumoEnv(cfg_dir, str(epoch), xnumber, ynumber, gui=gui)
-        evaluate_ac_net(sim_env, ac_net, log_file, epoch)
+        evaluate_ac_net(sim_env, ac_net, log_file, epoch, f)
         epoch += 1
 
 

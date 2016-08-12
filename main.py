@@ -14,6 +14,7 @@ os.environ.setdefault('KERAS_BACKEND', 'tensorflow')
 import sys
 from multiprocessing import cpu_count, Pool
 from multiprocessing.pool import ThreadPool
+import tensorflow as tf
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import socket
@@ -241,7 +242,8 @@ def train(cfg_dir, summary_dir, net_dir, xnumber, ynumber,
 def evaluate(cfg_dir, summary_dir, net_dir, xnumber, ynumber,
              history_length, cross_num, cross_status, v_dim, a_dim, gui=False):
     net_files = sorted(os.listdir(net_dir))
-    ac_net = build_graph(history_length, cross_num, cross_status, v_dim, a_dim)
+    with tf.device('/cpu:0'):
+        ac_net = build_graph(history_length, cross_num, cross_status, v_dim, a_dim)
     log_file = os.path.join(summary_dir, 'evaluation.csv')
     epoch = 0
     for f in net_files:

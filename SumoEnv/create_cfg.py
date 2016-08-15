@@ -83,11 +83,10 @@ class SumoCfg:
         """
         return os.path.isfile(self.roufile) and os.path.isfile(self.netfile)
 
-    def get_start_cmd(self, port, init_time, gui=False, withdet=False):
+    def get_start_cmd(self, init_time, gui=False, withdet=False):
         """
         Raise SUMO and run the simulation.
         :param init_time: strategy to controll traffic light
-        :param port: remote-port
         :param gui: with GUI
         :param withdet: with detector(e1,e2,e3)
         :return:
@@ -149,7 +148,7 @@ class SumoCfg:
                                             os.path.join(self.data_dir, self.netname, self.netname),
                                             '-o', self.netfile], stdout=sys.stdout, stderr=sys.stderr)
 
-    def gen_randomtrips(self, rouprob, endtime, seed='42',
+    def gen_randomtrips(self, rouprob, endtime, seed=None,
                         trip_attrib="departLane=\"best\" departSpeed=\"max\" departPos=\"random\""):
         """
         Generate random trip on given network
@@ -160,6 +159,9 @@ class SumoCfg:
         :param trip_attrib: additional attribute of random trips
         :return:
         """
+        if seed is None:
+            import random
+            seed = random.randint(0,100)
         rantrip_generator = os.path.join(sumo_home, 'randomTrips.py')
         gentripProcessor = subprocess.Popen([rantrip_generator, '-n', self.netfile,
                                              '-e', endtime, '-s', seed,

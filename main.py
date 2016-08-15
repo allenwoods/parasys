@@ -253,6 +253,7 @@ def evaluate(cfg_dir, summary_dir, net_dir, xnumber, ynumber,
         sim_env = SumoEnv(cfg_dir, str(epoch), xnumber, ynumber, gui=gui)
         evaluate_ac_net(sim_env, ac_net, log_file, epoch, f)
         epoch += 1
+    traci.close()
 
 
 if __name__ == '__main__':

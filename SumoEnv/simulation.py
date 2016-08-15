@@ -64,11 +64,11 @@ class SumoEnv:
             self.port = str(get_free_port())
         else:
             self.port = str(port)
-        self.current_epoch = 1
         self.gui = gui
         self.tls = []
         self.actions, self.action_space_n = self.get_action_space()
         self.update_step = update_step
+        self.current_epoch = 0
 
     def get_action_space(self):
         direction = ['North', 'East']
@@ -83,10 +83,10 @@ class SumoEnv:
             except KeyError:
                 print("Traci is not running")
         if phase is 'Train':
-            self.sumo_cfg = SumoCfg(self.data_dir, self.task_name + str(self.current_epoch),
-                                self.xnumber, self.ynumber,
-                                self.xlength, self.ylength, self.net_type, self.tls_type,
-                                self.rouprob, self.epoch_steps)
+            self.sumo_cfg = SumoCfg(self.data_dir, self.task_name,
+                                    self.xnumber, self.ynumber,
+                                    self.xlength, self.ylength, self.net_type, self.tls_type,
+                                    self.rouprob, self.epoch_steps)
             print("Sumo_cfg created")
             self.sumo_cfg.make()
         sumo_cmd, run_env = self.sumo_cfg.get_start_cmd(self.port, mission_start_time, gui=self.gui)

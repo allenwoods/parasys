@@ -89,7 +89,7 @@ class SumoEnv:
                                     self.rouprob, self.epoch_steps)
             print("Sumo_cfg created")
             self.sumo_cfg.make()
-        sumo_cmd, run_env = self.sumo_cfg.get_start_cmd(self.port, mission_start_time, gui=self.gui)
+        sumo_cmd, run_env = self.sumo_cfg.get_start_cmd(mission_start_time, gui=self.gui)
         print("Try Raise Traci")
         self.traci_env = TraciEnv(self.port, label=self.thread_label)
         # print("Get here")

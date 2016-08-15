@@ -161,7 +161,7 @@ class SumoCfg:
         """
         if seed is None:
             import random
-            seed = random.randint(0,100)
+            seed = str(random.randint(0, 100))
         rantrip_generator = os.path.join(sumo_home, 'randomTrips.py')
         gentripProcessor = subprocess.Popen([rantrip_generator, '-n', self.netfile,
                                              '-e', endtime, '-s', seed,
